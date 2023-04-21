@@ -1,8 +1,6 @@
-# Tauri + React + Typescript
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 # ipcamscanner
+Simple tauri app to display pingable ip's of network
+# Usage
+make sure you've all dependencies of tauri installed.
+```npm run tauri dev```
