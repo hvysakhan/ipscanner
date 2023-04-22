@@ -12,11 +12,20 @@ interface IP {
   name: string;
   id: number;
 }
+
+enum load_state{
+  not_loaded,
+  loading,
+  loaded,
+  error
+}
+
 function App() {
   const [Networks, setNetworks] = useState(Array<Network>());
   const [IPs, setIPs] = useState(Array<IP>());
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
+  // const [loading, setLoading] = useState(false);
+  const [loadState, setLoadState] = useState(load_state.not_loaded);
 
   async function check_network_interfaces() {
     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -26,11 +35,13 @@ function App() {
 
   async function list_ips(interface_name: String) {
     // console.log(await invoke<Array<IP>>("list_ips",{interfaceName: interface_name}));
-    setLoading(true);
+    // setLoading(true);
+    setLoadState(load_state.loading);
     setIPs(
       await invoke<Array<IP>>("list_ips", { interfaceName: interface_name })
     );
-    setLoading(false);
+    // setLoading(false);
+    setLoadState(load_state.loaded);
   }
 
   return (
@@ -81,11 +92,11 @@ function App() {
         </form>
       </div>
       <div>
-        {loading ? (
+        {loadState == load_state.loading ? (
           <div>Loading. Please Wait.</div>
         ) : (
           <div>
-            {IPs.length == 0 ? (
+            {IPs.length == 0 && loadState == load_state.loaded ? (
               <div>nothing found</div>
             ) : (
               <div>
