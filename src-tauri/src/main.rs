@@ -9,6 +9,20 @@ use futures::lock::Mutex as FMutex;
 use network_interface::{NetworkInterface as NetworkInterfaceNW, NetworkInterfaceConfig};
 use serde_json::{json, Value};
 
+use std::env;
+use std::io::{self, Write};
+use std::net::{AddrParseError, IpAddr, Ipv4Addr};
+use std::process;
+
+use pnet::datalink::{Channel, MacAddr};
+
+use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
+use pnet::packet::ethernet::EtherTypes;
+use pnet::packet::ethernet::MutableEthernetPacket;
+use pnet::packet::{MutablePacket, Packet};
+
+
+
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 fn list_network_interfaces() -> Vec<Value> {
@@ -154,9 +168,86 @@ async fn list_ips(interface_name: String)-> Vec<Value> {
 
 }
 
+#[tauri::command]
+fn get_mac_through_arp(interface: String, target_ip: String) -> String {
+
+    let interface_names_match =
+        |iface: &NetworkInterface| iface.name == interface;
+
+    let interfaces = datalink::interfaces();
+    // println!("{:?}", interfaces);
+
+
+    let interface = interfaces.into_iter()
+                               .filter(interface_names_match)
+                               .next()
+                               .unwrap();
+
+    let target_ip = target_ip.parse::<Ipv4Addr>().unwrap();
+
+    let source_ip = interface
+        .ips
+        .iter()
+        .find(|ip| ip.is_ipv4())
+        .map(|ip| match ip.ip() {
+            IpAddr::V4(ip) => ip,
+            _ => unreachable!(),
+        })
+        .unwrap();
+
+    let (mut sender, mut receiver) = match pnet::datalink::channel(&interface, Default::default()) {
+        Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
+        Ok(_) => panic!("Unknown channel type"),
+        Err(e) => panic!("Error happened {}", e),
+    };
+
+    let mut ethernet_buffer = [0u8; 42];
+    let mut ethernet_packet = MutableEthernetPacket::new(&mut ethernet_buffer).unwrap();
+
+    ethernet_packet.set_destination(MacAddr::broadcast());
+    ethernet_packet.set_source(interface.mac.unwrap());
+    ethernet_packet.set_ethertype(EtherTypes::Arp);
+
+    let mut arp_buffer = [0u8; 28];
+    let mut arp_packet = MutableArpPacket::new(&mut arp_buffer).unwrap();
+
+    arp_packet.set_hardware_type(ArpHardwareTypes::Ethernet);
+    arp_packet.set_protocol_type(EtherTypes::Ipv4);
+    arp_packet.set_hw_addr_len(6);
+    arp_packet.set_proto_addr_len(4);
+    arp_packet.set_operation(ArpOperations::Request);
+    arp_packet.set_sender_hw_addr(interface.mac.unwrap());
+    arp_packet.set_sender_proto_addr(source_ip);
+    arp_packet.set_target_hw_addr(MacAddr::zero());
+    arp_packet.set_target_proto_addr(target_ip);
+
+    ethernet_packet.set_payload(arp_packet.packet_mut());
+
+    sender
+        .send_to(ethernet_packet.packet(), None)
+        .unwrap()
+        .unwrap();
+
+    println!("Sent ARP request");
+
+    while let buf = receiver.next().unwrap() {
+        let arp = ArpPacket::new(&buf[MutableEthernetPacket::minimum_packet_size()..]).unwrap();
+        if arp.get_sender_proto_addr() == target_ip
+            && arp.get_target_hw_addr() == interface.mac.unwrap()
+        {
+            println!("Received reply");
+            return arp.get_sender_hw_addr().to_string();
+        }
+        else{
+            return "Not Found".to_string();
+        }
+    }
+    panic!("Never reach here")
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![list_network_interfaces, list_ips])
+        .invoke_handler(tauri::generate_handler![list_network_interfaces, list_ips, get_mac_through_arp])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
