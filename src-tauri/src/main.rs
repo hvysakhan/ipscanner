@@ -194,7 +194,9 @@ fn get_mac_through_arp(interface: String, target_ip: String) -> String {
             _ => unreachable!(),
         })
         .unwrap();
-
+    if(source_ip == target_ip){
+        return interface.mac.unwrap().to_string();
+    }
     let (mut sender, mut receiver) = match pnet::datalink::channel(&interface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
         Ok(_) => panic!("Unknown channel type"),

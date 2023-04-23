@@ -6,8 +6,10 @@ Make sure you've all dependencies of tauri installed.
 
 Getting mac address requires root privileges, otherwise the app crashes.
 
-Also some ARP requests dont work for MAC Address, needs fixing.
+for running development:
 
 ```npm run tauri dev```
+
+to take build:
 
 ```npm run tauri build```
