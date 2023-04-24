@@ -13,6 +13,7 @@ use std::env;
 use std::io::{self, Write};
 use std::net::{AddrParseError, IpAddr, Ipv4Addr};
 use std::process;
+use tokio::task::JoinHandle;
 
 use pnet::datalink::{Channel, MacAddr};
 
@@ -88,79 +89,89 @@ async fn list_ips(interface_name: String)-> Vec<Value> {
                 println!("Scanning network: {}", net);
                 let network = Ipv4Network::new(net.ip(), net.prefix()).unwrap();
 
-                // let mut pingable_ips: Vec<std::net::Ipv4Addr> = Vec::new();
+                let mut pingable_ips: Vec<std::net::Ipv4Addr> = Vec::new();
 
-                // for ip in network.iter() {
-                //     // println!("{}", ip);
-                //     if is_pingable(std::net::IpAddr::V4(ip)).await{
-                //         println!("{}:online", ip);
-                //     }else{
-                //         println!("{}: offline", ip);
-
-                //     }
-                // }
-
-                // let mut handles = Vec::new();
-                // for ip in network.iter() {
-                //     let handle: JoinHandle<()> = tokio::spawn(async move {
-                //         if is_pingable(std::net::IpAddr::V4(ip)).await {
-                //             println!("{}: online", ip);
-                //         } else {
-                //             // println!("{}: offline", ip);
-                //         }
-                //     });
-
-                //     handles.push(handle);
-                // }
-
-                // for handle in handles {
-                //     handle.await.unwrap();
-                // }
-
-                let pingable_ips = Arc::new(FMutex::new(Vec::new()));
-                
-                let (tx, mut rx) = mpsc::channel(256);
-
+                let mut handles = Vec::new();
                 for ip in network.iter() {
-                    let tx = tx.clone();
-                    // let pingable_ips = pingable_ips.clone();
-                    // let ip_clone = *ip;
-
-                    tokio::spawn(async move {
+                    let handle: JoinHandle<Option<Ipv4Addr>> = tokio::spawn(async move {
                         if is_pingable(std::net::IpAddr::V4(ip)).await {
-                            tx.send(ip).await.unwrap();
+                            // println!("{}: online", ip);
+                            return Some(ip);
                         } else {
-                            // tx.send(None).await.unwrap();
+                            return None;
+                            // println!("{}: offline", ip);
                         }
                     });
 
+                    handles.push(handle);
                 }
+                println!("done");
+                let mut ips = Vec::new();
+                for handle in handles {
 
-                drop(tx);
-                println!("Waiting for results...");
 
-
-                while let Some(result) = rx.recv().await {
-                    println!("Received: {:?}", result);
-                    // println!("some ip:{:?}", Some(ip));
-                    
-                    pingable_ips.lock().await.push(result);
-                    
-                    
+                    match handle.await.unwrap() {
+                        Some(ip) => ips.push(ip),
+                        None => (),
+                    }
+                    // ips.push(handle.await.unwrap());
+                    // ips.push(handle.await.unwrap());
                 }
-                println!("Done!");
-
-                println!("Pingable IPs: {:?}", *pingable_ips.lock().await);
-
-                for (i,pingable_ip) in pingable_ips.lock().await.iter().enumerate() {
-                    println!("{}: online", pingable_ip);
+                for (i, ip) in ips.iter().enumerate() {
                     pingable_ips_json.push(
                         json!({
                             "id": i,
-                            "name": pingable_ip.to_string()
+                            "name": ip.to_string()
                         })
                     );
+                    println!("ip: {:?}", ip);
                 }
+
+
+                // let pingable_ips = Arc::new(FMutex::new(Vec::new()));
+                
+                // let (tx, mut rx) = mpsc::channel(256);
+
+                // for ip in network.iter() {
+                //     let tx = tx.clone();
+                //     // let pingable_ips = pingable_ips.clone();
+                //     // let ip_clone = *ip;
+
+                //     tokio::spawn(async move {
+                //         if is_pingable(std::net::IpAddr::V4(ip)).await {
+                //             tx.send(ip).await.unwrap();
+                //         } else {
+                //             // tx.send(None).await.unwrap();
+                //         }
+                //     });
+
+                // }
+
+                // drop(tx);
+                // println!("Waiting for results...");
+
+
+                // while let Some(result) = rx.recv().await {
+                //     println!("Received: {:?}", result);
+                //     // println!("some ip:{:?}", Some(ip));
+                    
+                //     pingable_ips.lock().await.push(result);
+                    
+                    
+                // }
+                // println!("Done!");
+
+                // println!("Pingable IPs: {:?}", *pingable_ips.lock().await);
+
+                // for (i,pingable_ip) in pingable_ips.lock().await.iter().enumerate() {
+                //     println!("{}: online", pingable_ip);
+                //     pingable_ips_json.push(
+                //         json!({
+                //             "id": i,
+                //             "name": pingable_ip.to_string()
+                //         })
+                //     );
+                // }
             }
         }
     }
