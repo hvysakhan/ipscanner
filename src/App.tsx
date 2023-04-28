@@ -33,7 +33,9 @@ function App() {
   async function check_network_interfaces() {
     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
     // console.log(await invoke<Array<String>>("list_network_interfaces"));
+    setLoadState(load_state.not_loaded);
     setSelectedIP("");
+    setIPs(Array<IP>());
     setMacAddress("");;
     setNetworks(await invoke<Array<Network>>("list_network_interfaces"));
   }
@@ -110,7 +112,7 @@ function App() {
           <div>Loading. Please Wait.</div>
         ) : (
           <div>
-            {IPs.length == 0 && loadState == load_state.loaded && interfaceName==""? (
+            {IPs.length == 0 && loadState == load_state.loaded ? (
               <div>nothing found</div>
             ) : (
               <div>

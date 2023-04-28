@@ -89,7 +89,7 @@ async fn list_ips(interface_name: String)-> Vec<Value> {
                 println!("Scanning network: {}", net);
                 let network = Ipv4Network::new(net.ip(), net.prefix()).unwrap();
 
-                let mut pingable_ips: Vec<std::net::Ipv4Addr> = Vec::new();
+                // let mut pingable_ips: Vec<std::net::Ipv4Addr> = Vec::new();
 
                 let mut handles = Vec::new();
                 for ip in network.iter() {
@@ -243,7 +243,8 @@ fn get_mac_through_arp(interface: String, target_ip: String) -> String {
 
     println!("Sent ARP request");
 
-    while let buf = receiver.next().unwrap() {
+    loop {
+        let buf = receiver.next().unwrap();
         let arp = ArpPacket::new(&buf[MutableEthernetPacket::minimum_packet_size()..]).unwrap();
         if arp.get_sender_proto_addr() == target_ip
             && arp.get_target_hw_addr() == interface.mac.unwrap()
@@ -255,7 +256,20 @@ fn get_mac_through_arp(interface: String, target_ip: String) -> String {
             return "Not Found".to_string();
         }
     }
-    panic!("Never reach here")
+
+    // while let buf = receiver.next().unwrap() {
+    //     let arp = ArpPacket::new(&buf[MutableEthernetPacket::minimum_packet_size()..]).unwrap();
+    //     if arp.get_sender_proto_addr() == target_ip
+    //         && arp.get_target_hw_addr() == interface.mac.unwrap()
+    //     {
+    //         println!("Received reply");
+    //         return arp.get_sender_hw_addr().to_string();
+    //     }
+    //     else{
+    //         return "Not Found".to_string();
+    //     }
+    // }
+    // panic!("Never reach here");
 }
 
 fn main() {
