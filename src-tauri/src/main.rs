@@ -27,8 +27,15 @@ use pnet::packet::{MutablePacket, Packet};
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 fn list_network_interfaces() -> Vec<Value> {
-    let network_interfaces = NetworkInterfaceNW::show().unwrap();
     let mut itf1: Vec<Value> = vec![];
+    let network_interfaces = NetworkInterfaceNW::show().unwrap_or_else(|e| {
+        println!("Error listing interfaces: {}", e);
+        return vec![];
+        // std::process::exit(1);
+    });
+    // if(network_interfaces.len() == 0){
+    //     return itf1;
+    // }
     for (i,itf) in network_interfaces.iter().enumerate() {
         // println!("{:?}", itf.name);
         itf1.push(json!({
@@ -74,11 +81,25 @@ async fn list_ips(interface_name: String)-> Vec<Value> {
     let interface = interfaces.into_iter()
                                .filter(interface_names_match)
                                .next()
-                               .unwrap();
+                               .unwrap_or_else(||{ 
+                                    return NetworkInterface {
+                                        description: "none".to_string(),
+                                        name: "none".to_string(),
+                                        index: 0,
+                                        mac: Some(MacAddr::zero()),
+                                        ips: vec![],
+                                        flags: 0,
+                                    }
+                                });
+
+    let mut pingable_ips_json: Vec<Value> = vec![];
+    if(interface.ips.len() == 0){
+        return pingable_ips_json;
+    }
     println!("{:?}", interface.ips);
 
     // let interfaces = datalink::interfaces();
-    let mut pingable_ips_json: Vec<Value> = vec![];
+    
     let ips = interface.ips.clone();
     for ip in ips {
         if let IpNetwork::V4(net) = ip {
@@ -110,7 +131,7 @@ async fn list_ips(interface_name: String)-> Vec<Value> {
                 for handle in handles {
 
 
-                    match handle.await.unwrap() {
+                    match handle.await.unwrap_or_else(|_| None) {
                         Some(ip) => ips.push(ip),
                         None => (),
                     }
@@ -192,7 +213,19 @@ fn get_mac_through_arp(interface: String, target_ip: String) -> String {
     let interface = interfaces.into_iter()
                                .filter(interface_names_match)
                                .next()
-                               .unwrap();
+                               .unwrap_or_else(||{ 
+                                    return NetworkInterface {
+                                        description: "none".to_string(),
+                                        name: "none".to_string(),
+                                        index: 0,
+                                        mac: Some(MacAddr::zero()),
+                                        ips: vec![],
+                                        flags: 0,
+                                    }
+                                });
+    if(interface.ips.len() == 0){
+        return "".to_string();
+    }
 
     let target_ip = target_ip.parse::<Ipv4Addr>().unwrap();
 
@@ -204,14 +237,19 @@ fn get_mac_through_arp(interface: String, target_ip: String) -> String {
             IpAddr::V4(ip) => ip,
             _ => unreachable!(),
         })
-        .unwrap();
-    if(source_ip == target_ip){
+        .unwrap_or_else(|| return Ipv4Addr::new(0, 0, 0, 0));
+
+    if(source_ip == Ipv4Addr::new(0, 0, 0, 0)){
+        return "".to_string();
+    }
+
+    if source_ip == target_ip{
         return interface.mac.unwrap().to_string();
     }
     let (mut sender, mut receiver) = match pnet::datalink::channel(&interface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => panic!("Unknown channel type"),
-        Err(e) => panic!("Error happened {}", e),
+        Ok(_) => return("try with root privileges".to_string()),
+        Err(e) => return("try with root privileges".to_string()),
     };
 
     let mut ethernet_buffer = [0u8; 42];

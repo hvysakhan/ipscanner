@@ -4,7 +4,7 @@ Simple tauri app to display pingable ip's of network along with MAC address.
 # Usage
 Make sure you've all dependencies of tauri installed. 
 
-Getting mac address requires root privileges, otherwise the app crashes.
+Getting mac address may require root privileges.
 
 for running development:
 
